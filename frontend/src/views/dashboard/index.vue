@@ -19,23 +19,33 @@
             </svg>
           </button>
 
-          <!-- 用户信息区 —— 预留 API 接入点 -->
-          <div class="topbar__user">
-            <img
-              v-if="user.avatar"
-              class="topbar__avatar"
-              :src="user.avatar"
-              :alt="user.name"
-              @error="onAvatarError"
-            />
-            <span v-else class="topbar__avatar-fallback">{{ user.name.charAt(0) }}</span>
+          <!-- 用户信息区 -->
+          <div class="topbar__user" @click="showUserMenu = !showUserMenu">
+            <span v-if="loadingUser" class="topbar__avatar-fallback">…</span>
+            <template v-else>
+              <img
+                v-if="user.avatar"
+                class="topbar__avatar"
+                :src="user.avatar"
+                :alt="user.name"
+                @error="onAvatarError"
+              />
+              <span v-else class="topbar__avatar-fallback">{{ user.name.charAt(0) }}</span>
+            </template>
             <div class="topbar__user-meta">
-              <span class="topbar__username">{{ user.name }}</span>
-              <span class="topbar__role">{{ user.role }}</span>
+              <span class="topbar__username">{{ loadingUser ? '加载中…' : user.name }}</span>
+              <span class="topbar__role">{{ user.email }}</span>
             </div>
             <svg class="topbar__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="6 9 12 15 18 9"/>
             </svg>
+
+            <!-- 下拉菜单 -->
+            <Transition name="menu">
+              <div v-if="showUserMenu" class="topbar__dropdown" @click.stop>
+                <div class="topbar__dropdown-item" @click="handleLogout">退出登录</div>
+              </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -105,24 +115,54 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import card from '@/components/task/card.vue'
+import api, { removeToken } from '@/api'
+
+const router = useRouter()
 
 // ============================================================
-//  模拟数据  ——  接入后端 API 时替换以下数据源即可
+//  用户数据  ——  从后端加载
 // ============================================================
 
-/** 当前登录用户（假数据） */
 const user = ref({
-  name: '张三',
-  role: '产品经理',
-  avatar: '',             // 空串会触发 @error → 显示首字母兜底
-  // avatar: 'https://i.pravatar.cc/80?img=3',  // 可填入真实头像地址
+  name: '',
+  email: '',
+  avatar: '',
 })
+
+const loadingUser = ref(true)
+const showUserMenu = ref(false)
+
+async function loadUser() {
+  try {
+    const res = await api.getMe()
+    user.value.name = res.data.username
+    user.value.email = res.data.email
+  } catch {
+    // token 无效，跳转登录
+    removeToken()
+    router.push('/login')
+  } finally {
+    loadingUser.value = false
+  }
+}
 
 /** 头像加载失败时回退到首字母 */
 function onAvatarError() {
   user.value.avatar = ''
+}
+
+/** 登出 */
+async function handleLogout() {
+  try {
+    await api.logout()
+  } catch {
+    // 即使服务端登出失败也清除本地 token
+  }
+  removeToken()
+  router.push('/login')
 }
 
 /** 根据当前时间段生成问候语 */
@@ -173,8 +213,20 @@ const cards = ref([
 //   cards.value = dashRes.data.cards
 // }
 
+/** 点击外部关闭下拉 */
+function onClickOutside(e) {
+  if (!e.target.closest('.topbar__user')) {
+    showUserMenu.value = false
+  }
+}
+
 onMounted(() => {
-  // 接入后端后替换为: loadDashboard()
+  loadUser()
+  document.addEventListener('click', onClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onClickOutside)
 })
 
 // ============================================================
@@ -351,6 +403,50 @@ function closeModal() {
 .topbar__chevron {
   color: #aaa;
   margin-left: 2px;
+  transition: transform .2s;
+}
+
+/* 下拉菜单 */
+.topbar__user {
+  position: relative;
+}
+
+.topbar__dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 120px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.12);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.topbar__dropdown-item {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #606266;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.topbar__dropdown-item:hover {
+  background: #f0f2f5;
+  color: #f56c6c;
+}
+
+/* 下拉动画 */
+.menu-enter-active,
+.menu-leave-active {
+  transition: opacity .15s, transform .15s;
+}
+
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 /* ============================================================

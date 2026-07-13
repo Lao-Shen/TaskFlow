@@ -1,31 +1,80 @@
 package user
 
-// 数据库操作
+import (
+	"backend/internal/database"
 
-func InsertUser(user User) (User, error) {
-	return user, nil
+	"gorm.io/gorm"
+)
+
+// ============================================================
+//  用户数据库操作
+// ============================================================
+
+// db 快捷引用
+func db() *gorm.DB {
+	return database.DB
 }
 
-func UpdateUser(user User) (User, error) {
-	return user, nil
+// AutoMigrate 自动迁移用户表
+func AutoMigrate() error {
+	return db().AutoMigrate(&User{})
 }
 
-func DeleteUser(user User) error {
-	return nil
+// ---------- 增 ----------
+
+func InsertUser(user *User) error {
+	return db().Create(user).Error
 }
 
-func GetUser(user User) (User, error) {
-	return user, nil
+// ---------- 删 ----------
+
+func DeleteUser(id uint64) error {
+	return db().Delete(&User{}, id).Error
 }
 
-func GetUserByUsername(username string) (User, error) {
-	return User{}, nil
+// ---------- 改 ----------
+
+func UpdateUser(user *User) error {
+	return db().Save(user).Error
 }
 
-func GetUserByEmail(email string) (User, error) {
-	return User{}, nil
+// ---------- 查 ----------
+
+func GetUserByID(id uint64) (*User, error) {
+	var user User
+	err := db().First(&user, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
-func GetUserById(userId string) (User, error) {
-	return User{}, nil
+func GetUserByUsername(username string) (*User, error) {
+	var user User
+	err := db().Where("username = ?", username).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func GetUserByEmail(email string) (*User, error) {
+	var user User
+	err := db().Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func IsUsernameExist(username string) bool {
+	var count int64
+	db().Model(&User{}).Where("username = ?", username).Count(&count)
+	return count > 0
+}
+
+func IsEmailExist(email string) bool {
+	var count int64
+	db().Model(&User{}).Where("email = ?", email).Count(&count)
+	return count > 0
 }

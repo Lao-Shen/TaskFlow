@@ -2,16 +2,24 @@ package main
 
 import (
 	"backend/internal"
+	"backend/internal/user"
 	"fmt"
 )
 
 func main() {
-	r := internal.ServerInit()
+	// 初始化数据库
+	internal.InitDB()
 
-	err := r.Run("localhost:8080")
-	if err != nil {
-		panic(err)
+	// 自动迁移用户表
+	if err := user.AutoMigrate(); err != nil {
+		panic(fmt.Errorf("数据库迁移失败: %w", err))
 	}
 
-	fmt.Println("Hello, TaskFlow")
+	// 启动服务
+	r := internal.ServerInit()
+
+	fmt.Println("TaskFlow 服务启动: http://localhost:8080")
+	if err := r.Run("0.0.0.0:8080"); err != nil {
+		panic(err)
+	}
 }

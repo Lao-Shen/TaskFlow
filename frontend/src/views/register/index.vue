@@ -1,33 +1,33 @@
 <template>
-  <div class="login">
+  <div class="register">
     <!-- 左侧装饰区 -->
-    <div class="login__hero">
-      <div class="login__hero-inner">
-        <h1 class="login__brand">
-          <span class="login__logo">⚡</span>TaskFlow
+    <div class="register__hero">
+      <div class="register__hero-inner">
+        <h1 class="register__brand">
+          <span class="register__logo">⚡</span>TaskFlow
         </h1>
-        <p class="login__tagline">高效协作，轻量管理<br />让每项任务都有归处</p>
-        <div class="login__deco">
-          <div class="login__deco-shape"></div>
-          <div class="login__deco-shape"></div>
-          <div class="login__deco-shape"></div>
+        <p class="register__tagline">加入我们，开始高效协作<br />注册一个账号即可免费使用</p>
+        <div class="register__deco">
+          <div class="register__deco-shape"></div>
+          <div class="register__deco-shape"></div>
+          <div class="register__deco-shape"></div>
         </div>
       </div>
     </div>
 
-    <!-- 右侧登录卡片 -->
-    <div class="login__main">
-      <div class="login__card">
-        <h2 class="login__title">欢迎回来</h2>
-        <p class="login__subtitle">登录你的账号以继续</p>
+    <!-- 右侧注册卡片 -->
+    <div class="register__main">
+      <div class="register__card">
+        <h2 class="register__title">创建账号</h2>
+        <p class="register__subtitle">填写以下信息完成注册</p>
 
-        <form class="login__form" @submit.prevent="handleLogin">
+        <form class="register__form" @submit.prevent="handleRegister">
           <!-- 错误提示 -->
           <div v-if="errorMsg" class="form-error">{{ errorMsg }}</div>
 
-          <!-- 账号 -->
+          <!-- 用户名 -->
           <div class="field">
-            <label class="field__label" for="username">账号</label>
+            <label class="field__label" for="username">用户名</label>
             <div class="field__wrap">
               <svg class="field__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -40,6 +40,25 @@
                 type="text"
                 placeholder="请输入用户名"
                 autocomplete="username"
+              />
+            </div>
+          </div>
+
+          <!-- 邮箱 -->
+          <div class="field">
+            <label class="field__label" for="email">邮箱</label>
+            <div class="field__wrap">
+              <svg class="field__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="m22 4-10 8L2 4"/>
+              </svg>
+              <input
+                id="email"
+                v-model="form.email"
+                class="field__input"
+                type="email"
+                placeholder="请输入邮箱地址"
+                autocomplete="email"
               />
             </div>
           </div>
@@ -58,7 +77,7 @@
                 class="field__input"
                 :type="showPwd ? 'text' : 'password'"
                 placeholder="请输入密码"
-                autocomplete="current-password"
+                autocomplete="new-password"
               />
               <button type="button" class="field__toggle" @click="showPwd = !showPwd" tabindex="-1">
                 <svg v-if="!showPwd" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -75,6 +94,28 @@
             </div>
           </div>
 
+          <!-- 确认密码 -->
+          <div class="field">
+            <label class="field__label" for="confirmPwd">确认密码</label>
+            <div class="field__wrap">
+              <svg class="field__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <path d="m9 16 2 2 4-4"/>
+              </svg>
+              <input
+                id="confirmPwd"
+                v-model="form.confirmPwd"
+                class="field__input"
+                :class="{ 'field__input--error': pwdMismatch }"
+                type="password"
+                placeholder="请再次输入密码"
+                autocomplete="new-password"
+              />
+              <span v-if="pwdMismatch" class="field__hint">两次密码不一致</span>
+            </div>
+          </div>
+
           <!-- 滑动验证 -->
           <div class="field">
             <label class="field__label">安全验证</label>
@@ -88,7 +129,6 @@
               @mousedown.prevent="onSliderStart"
               @touchstart.prevent="onSliderStart"
             >
-              <!-- 滑轨文字 -->
               <span class="slider__hint">
                 <template v-if="slider.passed">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -99,7 +139,6 @@
                 </template>
               </span>
 
-              <!-- 滑块 -->
               <div
                 ref="sliderBtn"
                 class="slider__btn"
@@ -112,24 +151,25 @@
                 </svg>
               </div>
 
-              <!-- 已通过轨道 -->
               <div class="slider__track" :style="{ width: slider.trackWidth + 'px' }"></div>
             </div>
           </div>
 
-          <!-- 登录按钮 -->
+          <!-- 注册按钮 -->
           <button
-            class="login__btn"
+            class="register__btn"
             type="submit"
             :disabled="!canSubmit || loading"
-            :class="{ 'login__btn--loading': loading }"
+            :class="{ 'register__btn--loading': loading }"
           >
-            <span v-if="loading" class="login__btn-spinner"></span>
-            <span>{{ loading ? '登录中…' : '登 录' }}</span>
+            <span v-if="loading" class="register__btn-spinner"></span>
+            <span>{{ loading ? '注册中…' : '注 册' }}</span>
           </button>
         </form>
 
-        <p class="login__footer">还没有账号？<router-link to="/register" class="login__link">立即注册</router-link></p>
+        <p class="register__footer">
+          已有账号？<router-link to="/login" class="register__link">立即登录</router-link>
+        </p>
       </div>
     </div>
   </div>
@@ -145,12 +185,19 @@ import api, { setToken, ApiError } from '@/api'
 // ============================================================
 const form = reactive({
   username: '',
+  email: '',
   password: '',
+  confirmPwd: '',
 })
 
 const showPwd = ref(false)
 const loading = ref(false)
 const errorMsg = ref('')
+
+/** 两次密码是否不一致 */
+const pwdMismatch = computed(() => {
+  return form.confirmPwd.length > 0 && form.password !== form.confirmPwd
+})
 
 // ============================================================
 //  滑动验证
@@ -162,15 +209,18 @@ const slider = reactive({
   trackWidth: 0,
   passed: false,
   dragging: false,
-  status: '',        // '' | 'failed'
+  status: '',
   startX: 0,
-  maxOffset: 0,       // 运行时计算
+  maxOffset: 0,
 })
 
 /** 校验是否可提交 */
 const canSubmit = computed(() => {
   return form.username.trim() !== ''
+    && form.email.trim() !== ''
     && form.password.trim() !== ''
+    && form.confirmPwd.trim() !== ''
+    && !pwdMismatch.value
     && slider.passed
     && !loading.value
 })
@@ -184,10 +234,9 @@ function onSliderStart(e) {
   slider.startX = clientX
   slider.status = ''
 
-  // 动态计算轨道可用宽度（运行时拿 DOM 宽度）
   const wrap = e.currentTarget
   const btnW = sliderBtn.value ? sliderBtn.value.offsetWidth : 40
-  slider.maxOffset = wrap.offsetWidth - btnW - 4   // 4px padding
+  slider.maxOffset = wrap.offsetWidth - btnW - 4
 
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onEnd)
@@ -207,19 +256,15 @@ function onEnd() {
   if (!slider.dragging) return
   slider.dragging = false
 
-  // 判断是否拉到终点（留 4px 容差）
   if (slider.offset >= slider.maxOffset - 4) {
     slider.offset = slider.maxOffset
     slider.trackWidth = slider.maxOffset
     slider.passed = true
     slider.status = ''
   } else {
-    // 回弹
     slider.offset = 0
     slider.trackWidth = 0
     slider.status = 'failed'
-
-    // 失败动画 600ms 后清除
     setTimeout(() => {
       if (!slider.passed) slider.status = ''
     }, 600)
@@ -232,18 +277,19 @@ function onEnd() {
 }
 
 // ============================================================
-//  登录
+//  注册
 // ============================================================
 const router = useRouter()
 
-async function handleLogin() {
+async function handleRegister() {
   if (!canSubmit.value) return
 
   errorMsg.value = ''
   loading.value = true
   try {
-    const res = await api.login({
+    const res = await api.register({
       username: form.username,
+      email: form.email,
       password: form.password,
     })
     setToken(res.data.token)
@@ -274,7 +320,7 @@ onUnmounted(() => {
 /* ============================================================
    整体布局
    ============================================================ */
-.login {
+.register {
   min-height: 100vh;
   display: flex;
   background: linear-gradient(160deg, #f0f3f8 0%, #f7f9fc 40%, #f5f6fa 100%);
@@ -284,9 +330,9 @@ onUnmounted(() => {
 /* ============================================================
    左侧装饰区
    ============================================================ */
-.login__hero {
+.register__hero {
   flex: 1;
-  display: none;                       /* 小屏隐藏 */
+  display: none;
   background: linear-gradient(160deg, #2c3e50 0%, #3b5998 45%, #4a6fa5 100%);
   color: #fff;
   align-items: center;
@@ -295,14 +341,14 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.login__hero-inner {
+.register__hero-inner {
   position: relative;
   z-index: 1;
   text-align: center;
   padding: 48px;
 }
 
-.login__brand {
+.register__brand {
   margin: 0;
   font-size: 38px;
   font-weight: 700;
@@ -313,24 +359,23 @@ onUnmounted(() => {
   gap: 10px;
 }
 
-.login__logo { font-size: 42px; }
+.register__logo { font-size: 42px; }
 
-.login__tagline {
+.register__tagline {
   margin: 16px 0 0;
   font-size: 16px;
   line-height: 1.8;
   opacity: .78;
 }
 
-/* 装饰圆 */
-.login__deco {
+.register__deco {
   margin-top: 48px;
   display: flex;
   gap: 16px;
   justify-content: center;
 }
 
-.login__deco-shape {
+.register__deco-shape {
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -338,8 +383,8 @@ onUnmounted(() => {
   animation: decoPulse 2.4s ease-in-out infinite;
 }
 
-.login__deco-shape:nth-child(2) { animation-delay: .3s; }
-.login__deco-shape:nth-child(3) { animation-delay: .6s; }
+.register__deco-shape:nth-child(2) { animation-delay: .3s; }
+.register__deco-shape:nth-child(3) { animation-delay: .6s; }
 
 @keyframes decoPulse {
   0%, 100% { transform: scale(1); opacity: .25; }
@@ -347,9 +392,9 @@ onUnmounted(() => {
 }
 
 /* ============================================================
-   右侧登录卡片
+   右侧注册卡片
    ============================================================ */
-.login__main {
+.register__main {
   flex: 1;
   display: flex;
   align-items: center;
@@ -357,16 +402,16 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-.login__card {
+.register__card {
   width: 420px;
   max-width: 100%;
   background: #fff;
   border-radius: 20px;
-  padding: 40px 36px 36px;
+  padding: 36px 36px 32px;
   box-shadow: 0 8px 40px rgba(0,0,0,.06);
 }
 
-.login__title {
+.register__title {
   margin: 0;
   font-size: 26px;
   font-weight: 700;
@@ -374,7 +419,7 @@ onUnmounted(() => {
   letter-spacing: -0.3px;
 }
 
-.login__subtitle {
+.register__subtitle {
   margin: 6px 0 0;
   font-size: 14px;
   color: #86868b;
@@ -383,11 +428,11 @@ onUnmounted(() => {
 /* ============================================================
    表单
    ============================================================ */
-.login__form {
-  margin-top: 32px;
+.register__form {
+  margin-top: 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 /* 字段 */
@@ -431,6 +476,23 @@ onUnmounted(() => {
 }
 
 .field__input::placeholder { color: #c0c4cc; }
+
+.field__input--error {
+  border-color: #f56c6c;
+}
+
+.field__input--error:focus {
+  border-color: #f56c6c;
+  box-shadow: 0 0 0 3px rgba(245,108,108,.1);
+}
+
+.field__hint {
+  position: absolute;
+  right: 12px;
+  font-size: 12px;
+  color: #f56c6c;
+  pointer-events: none;
+}
 
 /* 密码可见切换 */
 .field__toggle {
@@ -480,7 +542,6 @@ onUnmounted(() => {
 .slider--passed  { background: #e8f5e9; }
 .slider--failed  { background: #fef0f0; }
 
-/* 滑轨已通过区域 */
 .slider__track {
   position: absolute;
   left: 0;
@@ -492,9 +553,8 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.slider--passed .slider__track { background: linear-gradient(135deg, #67c23a, #85ce61); border-radius: 10px; }
+.slider--passed .slider__track { border-radius: 10px; }
 
-/* 提示文字 */
 .slider__hint {
   position: relative;
   z-index: 1;
@@ -510,7 +570,6 @@ onUnmounted(() => {
 .slider--passed .slider__hint { color: #67c23a; }
 .slider--failed .slider__hint { color: #f56c6c; }
 
-/* 滑块按钮 */
 .slider__btn {
   position: absolute;
   left: 2px;
@@ -551,9 +610,9 @@ onUnmounted(() => {
 }
 
 /* ============================================================
-   登录按钮
+   注册按钮
    ============================================================ */
-.login__btn {
+.register__btn {
   width: 100%;
   padding: 13px 0;
   margin-top: 4px;
@@ -572,12 +631,11 @@ onUnmounted(() => {
   box-shadow: 0 4px 16px rgba(79,110,247,.3);
 }
 
-.login__btn:hover:not(:disabled) { opacity: .92; box-shadow: 0 6px 22px rgba(79,110,247,.4); }
-.login__btn:active:not(:disabled) { transform: scale(.98); }
-.login__btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.register__btn:hover:not(:disabled) { opacity: .92; box-shadow: 0 6px 22px rgba(79,110,247,.4); }
+.register__btn:active:not(:disabled) { transform: scale(.98); }
+.register__btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
-/* 加载动画 */
-.login__btn-spinner {
+.register__btn-spinner {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255,255,255,.3);
@@ -591,32 +649,32 @@ onUnmounted(() => {
 /* ============================================================
    底部链接
    ============================================================ */
-.login__footer {
+.register__footer {
   margin: 24px 0 0;
   text-align: center;
   font-size: 13px;
   color: #909399;
 }
 
-.login__link {
+.register__link {
   color: #4f6ef7;
   text-decoration: none;
   font-weight: 500;
 }
 
-.login__link:hover { text-decoration: underline; }
+.register__link:hover { text-decoration: underline; }
 
 /* ============================================================
    响应式
    ============================================================ */
 @media (min-width: 768px) {
-  .login__hero {
+  .register__hero {
     display: flex;
   }
 }
 
 @media (max-width: 767px) {
-  .login__card {
+  .register__card {
     padding: 28px 24px 24px;
   }
 }
