@@ -1,7 +1,7 @@
-package internal
+package middleware
 
 import (
-	"backend/internal/user"
+	authjwt "backend/pkg/jwt"
 	"net/http"
 	"strings"
 
@@ -28,10 +28,10 @@ func AuthRequired() gin.HandlerFunc {
 		}
 
 		tokenStr := parts[1]
-		claims := &user.Claims{}
+		claims := &authjwt.Claims{}
 
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
-			return []byte(user.JWTSecret), nil
+			return []byte(authjwt.JWTSecret), nil
 		})
 
 		if err != nil || !token.Valid {

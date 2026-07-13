@@ -1,7 +1,7 @@
 package user
 
 import (
-	"backend/internal/database"
+	"backend/pkg/database"
 
 	"gorm.io/gorm"
 )

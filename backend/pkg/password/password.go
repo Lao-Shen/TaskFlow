@@ -1,0 +1,16 @@
+package password
+
+import "golang.org/x/crypto/bcrypt"
+
+// ============================================================
+//  密码
+// ============================================================
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func CheckPassword(hashed, plain string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
+}

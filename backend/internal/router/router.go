@@ -1,6 +1,8 @@
-package internal
+package router
 
 import (
+	"backend/internal/auth"
+	"backend/internal/middleware"
 	"backend/internal/user"
 	"time"
 
@@ -38,15 +40,15 @@ func routerInit() {
 	api := r.Group("/api")
 	{
 		// ---- 公开接口 ----
-		api.POST("/register", user.Register)
-		api.POST("/login", user.Login)
+		api.POST("/register", auth.Register)
+		api.POST("/login", auth.Login)
 
 		// ---- 需鉴权接口 ----
-		auth := api.Group("")
-		auth.Use(AuthRequired())
+		authGroup := api.Group("")
+		authGroup.Use(middleware.AuthRequired())
 		{
-			auth.POST("/logout", user.Logout)
-			auth.GET("/user/me", user.GetMe)
+			authGroup.POST("/logout", auth.Logout)
+			authGroup.GET("/user/me", user.GetMe)
 		}
 	}
 }
