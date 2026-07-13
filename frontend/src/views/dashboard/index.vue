@@ -3,13 +3,11 @@
     <!-- ===== 顶部导航栏 ===== -->
     <header class="topbar">
       <div class="topbar__inner">
-        <!-- 左侧：Logo -->
         <div class="topbar__left">
           <span class="topbar__logo">⚡</span>
           <span class="topbar__brand">TaskFlow</span>
         </div>
 
-        <!-- 右侧：通知 + 用户信息 -->
         <div class="topbar__right">
           <button class="topbar__notify" title="消息通知">
             <span class="topbar__notify-dot"></span>
@@ -19,7 +17,6 @@
             </svg>
           </button>
 
-          <!-- 用户信息区 -->
           <div class="topbar__user" @click="showUserMenu = !showUserMenu">
             <span v-if="loadingUser" class="topbar__avatar-fallback">…</span>
             <template v-else>
@@ -40,7 +37,6 @@
               <polyline points="6 9 12 15 18 9"/>
             </svg>
 
-            <!-- 下拉菜单 -->
             <Transition name="menu">
               <div v-if="showUserMenu" class="topbar__dropdown" @click.stop>
                 <div class="topbar__dropdown-item" @click="handleLogout">退出登录</div>
@@ -66,8 +62,10 @@
     <section class="stats">
       <div
         class="stat-card"
+        :class="{ 'stat-card--active': statModal.key === s.key }"
         v-for="s in stats"
-        :key="s.label"
+        :key="s.key"
+        @click="openStatModal(s)"
       >
         <span class="stat-card__icon">{{ s.icon }}</span>
         <div class="stat-card__body">
@@ -77,11 +75,11 @@
       </div>
     </section>
 
-    <!-- ===== 任务面板 ===== -->
+    <!-- ===== 平台功能面板 ===== -->
     <section class="section">
       <div class="section__header">
-        <h2 class="section__title">📌 任务面板</h2>
-        <span class="section__count">{{ cards.length }} 个分组</span>
+        <h2 class="section__title">⚙️ 平台功能</h2>
+        <span class="section__count">{{ cards.length }} 个工具</span>
       </div>
 
       <div class="card-grid">
@@ -89,24 +87,65 @@
           class="card-grid__item"
           v-for="item in cards"
           :key="item.id"
-          @click="openCard(item)"
+          @click="openCardModal(item)"
         >
           <card v-bind="item" />
         </div>
       </div>
     </section>
 
-    <!-- ===== 弹窗 ===== -->
+    <!-- ===== 统计卡片弹窗（含任务列表） ===== -->
     <Transition name="modal">
-      <div v-if="showModal" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="showStatModal" class="modal-backdrop" @click.self="closeStatModal">
+        <div class="modal modal--wide">
+          <button class="modal__close" @click="closeStatModal" title="关闭">✕</button>
+          <div class="modal__icon">{{ statModal.icon }}</div>
+          <h3 class="modal__title">{{ statModal.label }}</h3>
+
+          <!-- 任务表格 -->
+          <table class="task-table" v-if="statModal.tasks.length">
+            <thead>
+              <tr>
+                <th>任务名称</th>
+                <th>任务类型</th>
+                <th>状态</th>
+                <th>创建时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in statModal.tasks" :key="t.id">
+                <td class="task-table__name">{{ t.name }}</td>
+                <td>{{ t.type }}</td>
+                <td>
+                  <span class="task-table__status" :class="`task-table__status--${t.statusClass}`">
+                    {{ t.status }}
+                  </span>
+                </td>
+                <td class="task-table__time">{{ t.time }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p v-else class="modal__empty">暂无任务</p>
+
+          <div class="modal__actions">
+            <button class="modal__btn modal__btn--secondary" @click="closeStatModal">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ===== 功能卡片弹窗 ===== -->
+    <Transition name="modal">
+      <div v-if="showCardModal" class="modal-backdrop" @click.self="closeCardModal">
         <div class="modal">
-          <button class="modal__close" @click="closeModal" title="关闭">✕</button>
+          <button class="modal__close" @click="closeCardModal" title="关闭">✕</button>
           <div class="modal__icon">{{ activeCard?.icon }}</div>
           <h3 class="modal__title">{{ activeCard?.title }}</h3>
           <p class="modal__desc">{{ activeCard?.description }}</p>
           <div class="modal__actions">
-            <button class="modal__btn modal__btn--primary" @click="closeModal">进入查看</button>
-            <button class="modal__btn modal__btn--secondary" @click="closeModal">取消</button>
+            <button class="modal__btn modal__btn--primary" @click="closeCardModal">进入功能</button>
+            <button class="modal__btn modal__btn--secondary" @click="closeCardModal">取消</button>
           </div>
         </div>
       </div>
@@ -115,7 +154,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import card from '@/components/task/card.vue'
 import api, { removeToken } from '@/api'
@@ -123,15 +162,9 @@ import api, { removeToken } from '@/api'
 const router = useRouter()
 
 // ============================================================
-//  用户数据  ——  从后端加载
+//  用户数据
 // ============================================================
-
-const user = ref({
-  name: '',
-  email: '',
-  avatar: '',
-})
-
+const user = ref({ name: '', email: '', avatar: '' })
 const loadingUser = ref(true)
 const showUserMenu = ref(false)
 
@@ -141,7 +174,6 @@ async function loadUser() {
     user.value.name = res.data.username
     user.value.email = res.data.email
   } catch {
-    // token 无效，跳转登录
     removeToken()
     router.push('/login')
   } finally {
@@ -149,23 +181,14 @@ async function loadUser() {
   }
 }
 
-/** 头像加载失败时回退到首字母 */
-function onAvatarError() {
-  user.value.avatar = ''
-}
+function onAvatarError() { user.value.avatar = '' }
 
-/** 登出 */
 async function handleLogout() {
-  try {
-    await api.logout()
-  } catch {
-    // 即使服务端登出失败也清除本地 token
-  }
+  try { await api.logout() } catch { /* ignore */ }
   removeToken()
   router.push('/login')
 }
 
-/** 根据当前时间段生成问候语 */
 const greeting = computed(() => {
   const h = new Date().getHours()
   if (h < 6) return '夜深了'
@@ -176,44 +199,104 @@ const greeting = computed(() => {
 })
 
 const today = new Date().toLocaleDateString('zh-CN', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  weekday: 'long',
+  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
 })
 
-/** 统计面板（假数据） */
-const stats = ref([
-  { icon: '📊', value: 12, label: '全部任务' },
-  { icon: '⏳', value: 5,  label: '待办' },
-  { icon: '🔄', value: 4,  label: '进行中' },
-  { icon: '✅', value: 3,  label: '已完成' },
+// ============================================================
+//  模拟任务池（统计卡片弹窗的数据来源）
+// ============================================================
+const allTasks = [
+  { id: 1,  name: '产品宣传图压缩',       type: '图片压缩',   status: '已完成', statusClass: 'done',    time: '2026-07-14 10:30' },
+  { id: 2,  name: 'API 参数 Base64 编码',  type: '编码转换',   status: '进行中', statusClass: 'progress', time: '2026-07-14 09:00' },
+  { id: 3,  name: '数据库连接串转义',      type: '编码转换',   status: '已完成', statusClass: 'done',    time: '2026-07-13 18:20' },
+  { id: 4,  name: '日志分析进制计算',      type: '进制转换',   status: '等待中', statusClass: 'waiting', time: '2026-07-14 08:15' },
+  { id: 5,  name: '配置文件 JSON 校验',    type: 'JSON格式化', status: '已完成', statusClass: 'done',    time: '2026-07-12 14:00' },
+  { id: 6,  name: '接口响应体格式化',      type: 'JSON格式化', status: '进行中', statusClass: 'progress', time: '2026-07-14 11:00' },
+  { id: 7,  name: '新旧配置文本对比',      type: '文本对比',   status: '等待中', statusClass: 'waiting', time: '2026-07-14 07:45' },
+  { id: 8,  name: '微信小程序码生成',      type: '二维码生成', status: '已完成', statusClass: 'done',    time: '2026-07-10 16:30' },
+  { id: 9,  name: 'App 启动页图片压缩',    type: '图片压缩',   status: '等待中', statusClass: 'waiting', time: '2026-07-13 22:00' },
+  { id: 10, name: 'Hex to ASCII 转换',     type: '进制转换',   status: '已完成', statusClass: 'done',    time: '2026-07-11 09:45' },
+  { id: 11, name: 'URL 参数编码处理',      type: '编码转换',   status: '进行中', statusClass: 'progress', time: '2026-07-14 10:00' },
+  { id: 12, name: '支付回调 JSON 美化',    type: 'JSON格式化', status: '已完成', statusClass: 'done',    time: '2026-07-09 13:20' },
+]
+
+// ============================================================
+//  统计卡片
+// ============================================================
+const stats = computed(() => [
+  {
+    key: 'all', icon: '📊', label: '全部任务',
+    value: allTasks.length,
+    tasks: allTasks,
+  },
+  {
+    key: 'waiting', icon: '⏳', label: '等待中',
+    value: allTasks.filter(t => t.statusClass === 'waiting').length,
+    tasks: allTasks.filter(t => t.statusClass === 'waiting'),
+  },
+  {
+    key: 'progress', icon: '🔄', label: '进行中',
+    value: allTasks.filter(t => t.statusClass === 'progress').length,
+    tasks: allTasks.filter(t => t.statusClass === 'progress'),
+  },
+  {
+    key: 'done', icon: '✅', label: '已完成',
+    value: allTasks.filter(t => t.statusClass === 'done').length,
+    tasks: allTasks.filter(t => t.statusClass === 'done'),
+  },
 ])
 
-/** 任务卡片列表（假数据） */
+// ============================================================
+//  平台功能卡片
+// ============================================================
 const cards = ref([
-  { id: 1, title: '待办任务', description: '查看所有待处理的任务项，合理安排优先级',   icon: '📋', badge: '5',  variant: 'todo' },
-  { id: 2, title: '进行中',   description: '跟踪当前正在推进的任务，掌握最新进度',       icon: '🔄', badge: '4',  variant: 'progress' },
-  { id: 3, title: '已完成',   description: '回顾已经完成的任务，总结经验与收获',         icon: '✅', badge: '3',  variant: 'done' },
-  { id: 4, title: '归档',     description: '浏览历史归档记录，便于日后检索与复盘',       icon: '📦', badge: '12', variant: 'archive' },
+  { id: 1,  title: '图片压缩',   icon: '🖼️', description: '支持 JPG / PNG / WebP 格式压缩，自定义压缩比例与输出质量', variant: 'progress', badge: '热门' },
+  { id: 2,  title: '进制转换',   icon: '🔢', description: '二进制、八进制、十进制、十六进制互转，支持批量输入',       variant: 'todo',     badge: '' },
+  { id: 3,  title: '编码转换',   icon: '🔤', description: 'URL 编码、Base64 编解码、Unicode 转义一键完成',           variant: 'progress', badge: '' },
+  { id: 4,  title: 'JSON 格式化', icon: '📋', description: 'JSON 美化、压缩、校验，支持树形折叠查看',                 variant: 'todo',     badge: '新' },
+  { id: 5,  title: '文本对比',   icon: '📝', description: '逐行对比两段文本差异，高亮显示新增/删除/修改内容',           variant: 'todo',     badge: '' },
+  { id: 6,  title: '二维码生成', icon: '📱', description: '输入文本或链接生成二维码，支持调整尺寸并下载 PNG',         variant: 'done',     badge: '' },
+  { id: 7,  title: '时间戳转换', icon: '🕐', description: 'Unix 时间戳与日期字符串互转，支持多时区',                 variant: 'todo',     badge: '' },
+  { id: 8,  title: '颜色转换',   icon: '🎨', description: 'Hex / RGB / HSL 颜色格式互转，实时预览色值',             variant: 'archive',  badge: 'Beta' },
 ])
 
 // ============================================================
-//  数据加载  ——  接入后端后放开此函数并替换假数据
+//  弹窗 —— 统计卡片
 // ============================================================
-// import { fetchDashboard, fetchUser } from '@/api/dashboard'
-//
-// async function loadDashboard() {
-//   const [userRes, dashRes] = await Promise.all([
-//     fetchUser(),          // GET /api/user/me
-//     fetchDashboard(),     // GET /api/dashboard
-//   ])
-//   user.value  = userRes.data
-//   stats.value = dashRes.data.stats
-//   cards.value = dashRes.data.cards
-// }
+const showStatModal = ref(false)
+const statModal = reactive({ key: '', icon: '', label: '', tasks: [] })
 
-/** 点击外部关闭下拉 */
+function openStatModal(s) {
+  statModal.key = s.key
+  statModal.icon = s.icon
+  statModal.label = s.label
+  statModal.tasks = s.tasks
+  showStatModal.value = true
+}
+
+function closeStatModal() {
+  showStatModal.value = false
+}
+
+// ============================================================
+//  弹窗 —— 功能卡片
+// ============================================================
+const showCardModal = ref(false)
+const activeCard = ref(null)
+
+function openCardModal(item) {
+  activeCard.value = item
+  showCardModal.value = true
+}
+
+function closeCardModal() {
+  showCardModal.value = false
+  activeCard.value = null
+}
+
+// ============================================================
+//  生命周期
+// ============================================================
 function onClickOutside(e) {
   if (!e.target.closest('.topbar__user')) {
     showUserMenu.value = false
@@ -228,22 +311,6 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside)
 })
-
-// ============================================================
-//  弹窗交互
-// ============================================================
-const showModal = ref(false)
-const activeCard = ref(null)
-
-function openCard(item) {
-  activeCard.value = item
-  showModal.value = true
-}
-
-function closeModal() {
-  showModal.value = false
-  activeCard.value = null
-}
 </script>
 
 <style scoped>
@@ -290,37 +357,15 @@ function closeModal() {
   justify-content: space-between;
 }
 
-/* 左侧品牌 */
-.topbar__left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.topbar__left  { display: flex; align-items: center; gap: 8px; }
+.topbar__logo  { font-size: 24px; }
+.topbar__brand { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.topbar__right { display: flex; align-items: center; gap: 12px; }
 
-.topbar__logo {
-  font-size: 24px;
-}
-
-.topbar__brand {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
-
-/* 右侧 */
-.topbar__right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* 通知按钮 */
 .topbar__notify {
   position: relative;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 10px;
+  width: 36px; height: 36px;
+  border: none; border-radius: 10px;
   background: transparent;
   color: #555;
   cursor: pointer;
@@ -329,94 +374,52 @@ function closeModal() {
   justify-content: center;
   transition: background .2s;
 }
-
-.topbar__notify:hover {
-  background: #f0f2f5;
-}
+.topbar__notify:hover { background: #f0f2f5; }
 
 .topbar__notify-dot {
   position: absolute;
-  top: 7px;
-  right: 8px;
-  width: 7px;
-  height: 7px;
+  top: 7px; right: 8px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   background: #f56c6c;
   border: 2px solid #fff;
 }
 
-/* 用户区 */
 .topbar__user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   padding: 4px 8px 4px 4px;
   border-radius: 28px;
   cursor: pointer;
   transition: background .2s;
+  position: relative;
 }
-
-.topbar__user:hover {
-  background: #f0f2f5;
-}
+.topbar__user:hover { background: #f0f2f5; }
 
 .topbar__avatar {
-  width: 34px;
-  height: 34px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   object-fit: cover;
   background: linear-gradient(135deg, #4f6ef7, #7c5cfc);
   flex-shrink: 0;
 }
 
-/* 头像加载失败时显示的占位首字母 */
 .topbar__avatar-fallback {
-  width: 34px;
-  height: 34px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   background: linear-gradient(135deg, #4f6ef7, #7c5cfc);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #fff; font-size: 15px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 
-.topbar__user-meta {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.topbar__username {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.topbar__role {
-  font-size: 11px;
-  color: var(--color-secondary);
-}
-
-.topbar__chevron {
-  color: #aaa;
-  margin-left: 2px;
-  transition: transform .2s;
-}
-
-/* 下拉菜单 */
-.topbar__user {
-  position: relative;
-}
+.topbar__user-meta { display: flex; flex-direction: column; line-height: 1.3; }
+.topbar__username   { font-size: 14px; font-weight: 600; }
+.topbar__role       { font-size: 11px; color: var(--color-secondary); }
+.topbar__chevron    { color: #aaa; margin-left: 2px; transition: transform .2s; }
 
 .topbar__dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  min-width: 120px;
+  position: absolute; top: 100%; right: 0;
+  margin-top: 8px; min-width: 120px;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0,0,0,.12);
@@ -426,28 +429,14 @@ function closeModal() {
 
 .topbar__dropdown-item {
   padding: 10px 16px;
-  font-size: 13px;
-  color: #606266;
+  font-size: 13px; color: #606266;
   cursor: pointer;
   transition: background .15s, color .15s;
 }
+.topbar__dropdown-item:hover { background: #f0f2f5; color: #f56c6c; }
 
-.topbar__dropdown-item:hover {
-  background: #f0f2f5;
-  color: #f56c6c;
-}
-
-/* 下拉动画 */
-.menu-enter-active,
-.menu-leave-active {
-  transition: opacity .15s, transform .15s;
-}
-
-.menu-enter-from,
-.menu-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
+.menu-enter-active, .menu-leave-active { transition: opacity .15s, transform .15s; }
+.menu-enter-from,   .menu-leave-to      { opacity: 0; transform: translateY(-6px); }
 
 /* ============================================================
    Hero 横条
@@ -458,33 +447,15 @@ function closeModal() {
 }
 
 .hero__inner {
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: 1200px; margin: 0 auto;
   padding: 28px 32px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: flex; align-items: flex-end; justify-content: space-between;
   gap: 16px;
 }
 
-.hero__greeting {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
-
-.hero__subtitle {
-  margin: 4px 0 0;
-  font-size: 14px;
-  opacity: .78;
-}
-
-.hero__date {
-  font-size: 13px;
-  opacity: .7;
-  white-space: nowrap;
-}
+.hero__greeting { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+.hero__subtitle { margin: 4px 0 0; font-size: 14px; opacity: .78; }
+.hero__date     { font-size: 13px; opacity: .7; white-space: nowrap; }
 
 /* ============================================================
    统计卡片
@@ -504,16 +475,21 @@ function closeModal() {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  display: flex; align-items: center; gap: 14px;
   box-shadow: var(--shadow-md);
-  transition: transform .2s, box-shadow .2s;
+  cursor: pointer;
+  transition: transform .2s, box-shadow .2s, outline-color .2s;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 28px rgba(0,0,0,.1);
+}
+
+.stat-card--active {
+  outline-color: #4f6ef7;
 }
 
 .stat-card__icon  { font-size: 30px; line-height: 1; }
@@ -522,7 +498,7 @@ function closeModal() {
 .stat-card__label { font-size: 13px; color: var(--color-secondary); margin-top: 2px; }
 
 /* ============================================================
-   任务面板
+   平台功能面板
    ============================================================ */
 .section {
   max-width: 1200px;
@@ -531,44 +507,27 @@ function closeModal() {
 }
 
 .section__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  display: flex; align-items: baseline; justify-content: space-between;
   margin-bottom: 20px;
 }
 
-.section__title {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 700;
-}
+.section__title { margin: 0; font-size: 19px; font-weight: 700; }
+.section__count { font-size: 13px; color: #909399; }
 
-.section__count {
-  font-size: 13px;
-  color: #909399;
-}
-
-/* ============================================================
-   卡片网格
-   ============================================================ */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
-
 .card-grid__item { cursor: pointer; }
 
 /* ============================================================
    弹窗
    ============================================================ */
 .modal-backdrop {
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background: rgba(0,0,0,.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
 }
@@ -583,73 +542,117 @@ function closeModal() {
   position: relative;
 }
 
-.modal__close {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: #f2f3f5;
-  color: #606266;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background .2s, color .2s;
+.modal--wide {
+  width: min(720px, 92%);
+  text-align: left;
 }
 
+.modal--wide .modal__title {
+  text-align: center;
+}
+
+.modal__close {
+  position: absolute; top: 14px; right: 16px;
+  width: 32px; height: 32px;
+  border: none; border-radius: 50%;
+  background: #f2f3f5;
+  color: #606266; font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s, color .2s;
+}
 .modal__close:hover { background: #e0e1e5; color: #303133; }
 
 .modal__icon  { font-size: 48px; margin-bottom: 12px; }
 .modal__title { margin: 0 0 10px; font-size: 22px; font-weight: 700; }
 .modal__desc  { margin: 0; color: var(--color-secondary); font-size: 15px; line-height: 1.7; }
+.modal__empty { text-align: center; color: #909399; padding: 24px 0; font-size: 14px; }
 
 .modal__actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
+  display: flex; gap: 12px; justify-content: center;
   margin-top: 28px;
 }
 
 .modal__btn {
   padding: 10px 28px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 500;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 500;
   cursor: pointer;
   transition: opacity .2s, transform .15s;
 }
-
 .modal__btn:active { transform: scale(.97); }
 
 .modal__btn--primary {
   background: linear-gradient(135deg, #409eff, #337ecc);
   color: #fff;
 }
-
 .modal__btn--primary:hover { opacity: .9; }
 
 .modal__btn--secondary {
   background: #f2f3f5;
   color: #606266;
 }
-
 .modal__btn--secondary:hover { background: #e5e6eb; }
 
-/* 弹窗动画 */
-.modal-enter-active,
-.modal-leave-active { transition: opacity .25s; }
+/* ============================================================
+   任务表格
+   ============================================================ */
+.task-table {
+  width: 100%;
+  margin-top: 20px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
 
-.modal-enter-active .modal,
-.modal-leave-active .modal { transition: transform .25s, opacity .25s; }
+.task-table th {
+  text-align: left;
+  padding: 10px 14px;
+  background: #f7f8fa;
+  color: #606266;
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 2px solid #e8eaef;
+}
 
-.modal-enter-from,
-.modal-leave-to { opacity: 0; }
+.task-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f2f5;
+  color: #303133;
+}
 
+.task-table tbody tr:hover {
+  background: #f9fafc;
+}
+
+.task-table__name {
+  font-weight: 500;
+}
+
+.task-table__time {
+  color: #909399;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* 状态标签 */
+.task-table__status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.task-table__status--waiting  { background: #fdf6ec; color: #e6a23c; }
+.task-table__status--progress { background: #ecf5ff; color: #409eff; }
+.task-table__status--done     { background: #f0f9eb; color: #67c23a; }
+
+/* ============================================================
+   弹窗动画
+   ============================================================ */
+.modal-enter-active, .modal-leave-active { transition: opacity .25s; }
+.modal-enter-active .modal, .modal-leave-active .modal { transition: transform .25s, opacity .25s; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal { transform: scale(.92) translateY(20px); opacity: 0; }
 .modal-leave-to   .modal { transform: scale(.92) translateY(20px); opacity: 0; }
 
@@ -657,41 +660,26 @@ function closeModal() {
    响应式
    ============================================================ */
 @media (max-width: 768px) {
-  .topbar__inner {
-    padding: 0 20px;
-  }
+  .topbar__inner { padding: 0 20px; }
+  .topbar__user-meta, .topbar__chevron { display: none; }
 
-  .topbar__user-meta,
-  .topbar__chevron {
-    display: none;
-  }
-
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .stats { grid-template-columns: repeat(2, 1fr); }
 
   .hero__inner {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: column; align-items: flex-start;
     padding: 20px;
   }
-
   .hero__greeting { font-size: 20px; }
 
-  .section,
-  .stats {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
+  .section, .stats { padding-left: 20px; padding-right: 20px; }
 
-  .card-grid {
-    grid-template-columns: 1fr;
-  }
+  .card-grid { grid-template-columns: 1fr; }
+
+  .task-table { font-size: 12px; }
+  .task-table th, .task-table td { padding: 8px 10px; }
 }
 
 @media (max-width: 480px) {
-  .stats {
-    grid-template-columns: 1fr;
-  }
+  .stats { grid-template-columns: 1fr; }
 }
 </style>
