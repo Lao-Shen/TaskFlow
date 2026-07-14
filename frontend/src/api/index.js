@@ -93,6 +93,20 @@ const api = {
   getMe() {
     return request('/user/me')
   },
+
+  /** POST /api/tasks — 创建任务 */
+  createTask(data) {
+    return request('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  /** GET /api/tasks — 获取任务列表（含统计） */
+  listTasks(status) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+    return request(`/tasks${qs}`)
+  },
 }
 
 export { getToken, setToken, removeToken, isLoggedIn, ApiError }

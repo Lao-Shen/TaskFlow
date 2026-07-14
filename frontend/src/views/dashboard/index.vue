@@ -150,6 +150,17 @@
         </div>
       </div>
     </Transition>
+
+    <!-- ===== 临时：随机创建任务按钮 ===== -->
+    <button class="fab" title="随机创建任务" @click="createRandomTask" :disabled="creatingTask">
+      <span v-if="!creatingTask">🎲</span>
+      <span v-else class="fab__spinner"></span>
+    </button>
+    <Transition name="toast">
+      <div v-if="toast.show" class="toast" :class="`toast--${toast.type}`">
+        {{ toast.msg }}
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -157,7 +168,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import card from '@/components/task/card.vue'
-import api, { removeToken } from '@/api'
+import api, { removeToken, ApiError } from '@/api'
 
 const router = useRouter()
 
@@ -203,22 +214,44 @@ const today = new Date().toLocaleDateString('zh-CN', {
 })
 
 // ============================================================
-//  模拟任务池（统计卡片弹窗的数据来源）
+//  任务数据  ——  从后端加载
 // ============================================================
-const allTasks = [
-  { id: 1,  name: '产品宣传图压缩',       type: '图片压缩',   status: '已完成', statusClass: 'done',    time: '2026-07-14 10:30' },
-  { id: 2,  name: 'API 参数 Base64 编码',  type: '编码转换',   status: '进行中', statusClass: 'progress', time: '2026-07-14 09:00' },
-  { id: 3,  name: '数据库连接串转义',      type: '编码转换',   status: '已完成', statusClass: 'done',    time: '2026-07-13 18:20' },
-  { id: 4,  name: '日志分析进制计算',      type: '进制转换',   status: '等待中', statusClass: 'waiting', time: '2026-07-14 08:15' },
-  { id: 5,  name: '配置文件 JSON 校验',    type: 'JSON格式化', status: '已完成', statusClass: 'done',    time: '2026-07-12 14:00' },
-  { id: 6,  name: '接口响应体格式化',      type: 'JSON格式化', status: '进行中', statusClass: 'progress', time: '2026-07-14 11:00' },
-  { id: 7,  name: '新旧配置文本对比',      type: '文本对比',   status: '等待中', statusClass: 'waiting', time: '2026-07-14 07:45' },
-  { id: 8,  name: '微信小程序码生成',      type: '二维码生成', status: '已完成', statusClass: 'done',    time: '2026-07-10 16:30' },
-  { id: 9,  name: 'App 启动页图片压缩',    type: '图片压缩',   status: '等待中', statusClass: 'waiting', time: '2026-07-13 22:00' },
-  { id: 10, name: 'Hex to ASCII 转换',     type: '进制转换',   status: '已完成', statusClass: 'done',    time: '2026-07-11 09:45' },
-  { id: 11, name: 'URL 参数编码处理',      type: '编码转换',   status: '进行中', statusClass: 'progress', time: '2026-07-14 10:00' },
-  { id: 12, name: '支付回调 JSON 美化',    type: 'JSON格式化', status: '已完成', statusClass: 'done',    time: '2026-07-09 13:20' },
-]
+const tasks = ref([])                  // 已映射的显示任务列表
+const loadingTasks = ref(false)
+
+// 后端状态 → 显示名
+const STATUS_LABEL = {
+  CREATED: '已创建', QUEUED: '等待中', RUNNING: '进行中',
+  SUCCESS: '已完成', FAILED: '失败',
+}
+// 后端状态 → CSS class
+const STATUS_CLASS = {
+  CREATED: 'created', QUEUED: 'waiting', RUNNING: 'progress',
+  SUCCESS: 'done',    FAILED: 'failed',
+}
+
+function mapTask(t) {
+  return {
+    id:      t.id,
+    name:    t.name,
+    type:    t.type,
+    status:  STATUS_LABEL[t.status] || t.status,
+    statusClass: STATUS_CLASS[t.status] || 'waiting',
+    time:    t.created_at,
+  }
+}
+
+async function loadTasks() {
+  loadingTasks.value = true
+  try {
+    const res = await api.listTasks()
+    tasks.value = (res.data.tasks || []).map(mapTask)
+  } catch {
+    tasks.value = []
+  } finally {
+    loadingTasks.value = false
+  }
+}
 
 // ============================================================
 //  统计卡片
@@ -226,23 +259,23 @@ const allTasks = [
 const stats = computed(() => [
   {
     key: 'all', icon: '📊', label: '全部任务',
-    value: allTasks.length,
-    tasks: allTasks,
+    value: tasks.value.length,
+    tasks: tasks.value,
   },
   {
     key: 'waiting', icon: '⏳', label: '等待中',
-    value: allTasks.filter(t => t.statusClass === 'waiting').length,
-    tasks: allTasks.filter(t => t.statusClass === 'waiting'),
+    value: tasks.value.filter(t => t.statusClass === 'waiting').length,
+    tasks: tasks.value.filter(t => t.statusClass === 'waiting'),
   },
   {
     key: 'progress', icon: '🔄', label: '进行中',
-    value: allTasks.filter(t => t.statusClass === 'progress').length,
-    tasks: allTasks.filter(t => t.statusClass === 'progress'),
+    value: tasks.value.filter(t => t.statusClass === 'progress').length,
+    tasks: tasks.value.filter(t => t.statusClass === 'progress'),
   },
   {
     key: 'done', icon: '✅', label: '已完成',
-    value: allTasks.filter(t => t.statusClass === 'done').length,
-    tasks: allTasks.filter(t => t.statusClass === 'done'),
+    value: tasks.value.filter(t => t.statusClass === 'done').length,
+    tasks: tasks.value.filter(t => t.statusClass === 'done'),
   },
 ])
 
@@ -295,6 +328,54 @@ function closeCardModal() {
 }
 
 // ============================================================
+//  临时：随机创建任务
+// ============================================================
+const creatingTask = ref(false)
+const toast = reactive({ show: false, type: 'success', msg: '' })
+
+const TASK_POOL = [
+  { name: '产品宣传图压缩',        type: '图片压缩' },
+  { name: 'API 参数 Base64 编码',   type: '编码转换' },
+  { name: '数据库连接串转义',      type: '编码转换' },
+  { name: '日志分析进制计算',      type: '进制转换' },
+  { name: '配置文件 JSON 校验',    type: 'JSON格式化' },
+  { name: '接口响应体格式化',      type: 'JSON格式化' },
+  { name: '新旧配置文本对比',      type: '文本对比' },
+  { name: '微信小程序码生成',      type: '二维码生成' },
+  { name: 'App 启动页图片压缩',    type: '图片压缩' },
+  { name: 'Hex to ASCII 转换',     type: '进制转换' },
+  { name: 'URL 参数编码处理',      type: '编码转换' },
+  { name: '支付回调 JSON 美化',    type: 'JSON格式化' },
+  { name: '用户头像批量压缩',      type: '图片压缩' },
+  { name: '时间戳调试工具',        type: '时间戳转换' },
+  { name: '品牌色值转换',          type: '颜色转换' },
+]
+
+function randomPick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+async function createRandomTask() {
+  creatingTask.value = true
+  const task = randomPick(TASK_POOL)
+  try {
+    await api.createTask({ name: task.name, type: task.type })
+    loadTasks()  // 刷新任务总览
+    toast.msg = `已创建：${task.name}`
+    toast.type = 'success'
+    toast.show = true
+    setTimeout(() => { toast.show = false }, 2000)
+  } catch (e) {
+    toast.msg = e instanceof ApiError ? e.message : '创建失败'
+    toast.type = 'error'
+    toast.show = true
+    setTimeout(() => { toast.show = false }, 2500)
+  } finally {
+    creatingTask.value = false
+  }
+}
+
+// ============================================================
 //  生命周期
 // ============================================================
 function onClickOutside(e) {
@@ -305,6 +386,7 @@ function onClickOutside(e) {
 
 onMounted(() => {
   loadUser()
+  loadTasks()
   document.addEventListener('click', onClickOutside)
 })
 
@@ -646,6 +728,8 @@ onUnmounted(() => {
 .task-table__status--waiting  { background: #fdf6ec; color: #e6a23c; }
 .task-table__status--progress { background: #ecf5ff; color: #409eff; }
 .task-table__status--done     { background: #f0f9eb; color: #67c23a; }
+.task-table__status--created  { background: #f4f4f5; color: #909399; }
+.task-table__status--failed   { background: #fef0f0; color: #f56c6c; }
 
 /* ============================================================
    弹窗动画
@@ -655,6 +739,69 @@ onUnmounted(() => {
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal { transform: scale(.92) translateY(20px); opacity: 0; }
 .modal-leave-to   .modal { transform: scale(.92) translateY(20px); opacity: 0; }
+
+/* ============================================================
+   浮动按钮（临时）
+   ============================================================ */
+.fab {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #4f6ef7, #3b5998);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 24px rgba(79,110,247,.35);
+  transition: transform .2s, box-shadow .2s, opacity .2s;
+  z-index: 500;
+}
+
+.fab:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 8px 32px rgba(79,110,247,.5);
+}
+
+.fab:active:not(:disabled) { transform: scale(.96); }
+.fab:disabled { opacity: .7; cursor: not-allowed; }
+
+.fab__spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast 通知 */
+.toast {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 600;
+  pointer-events: none;
+}
+
+.toast--success { background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8; }
+.toast--error   { background: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2; }
+
+.toast-enter-active,
+.toast-leave-active { transition: opacity .25s, transform .25s; }
+.toast-enter-from,
+.toast-leave-to       { opacity: 0; transform: translateX(-50%) translateY(8px); }
 
 /* ============================================================
    响应式

@@ -3,6 +3,7 @@ package router
 import (
 	"backend/internal/auth"
 	"backend/internal/middleware"
+	"backend/internal/task"
 	"backend/internal/user"
 	"time"
 
@@ -49,6 +50,8 @@ func routerInit() {
 		{
 			authGroup.POST("/logout", auth.Logout)
 			authGroup.GET("/user/me", user.GetMe)
+			authGroup.POST("/tasks", task.CreateTask)
+			authGroup.GET("/tasks", task.ListTasks)
 		}
 	}
 }
